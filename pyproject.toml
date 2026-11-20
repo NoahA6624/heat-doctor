@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heat-doctor"
+version = "1.0.0"
+description = "Lightweight PC heat, performance, storage and security diagnostics with a browser dashboard."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = ["psutil>=5.9"]
+
+[project.optional-dependencies]
+claude = ["anthropic"]
+
+[project.scripts]
+heat-doctor = "heat_doctor.__main__:main"
+
+[tool.setuptools]
+packages = ["heat_doctor"]
+
+[tool.setuptools.package-data]
+heat_doctor = ["static/*"]

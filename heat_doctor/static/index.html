@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="hd-token" content="__HD_TOKEN__">
+<title>Heat Doctor</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23eb6834'/%3E%3Cpath d='M16 6c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-4 1-7 1-10z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#eb6834"/><path d="M16 6c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-4 1-7 1-10z" fill="#fff"/></svg>
+      Heat Doctor
+    </div>
+    <div class="top-meta" id="topMeta"><span><span class="spin"></span> Starting…</span></div>
+    <div class="spacer"></div>
+    <div class="seg" role="group" aria-label="Time window" id="windowSeg">
+      <button data-w="60">1m</button><button data-w="300" aria-pressed="true">5m</button><button data-w="900">15m</button><button data-w="3600">1h</button>
+    </div>
+    <button class="btn ghost small" id="themeBtn" title="Switch theme" aria-label="Switch theme">Theme: Auto</button>
+    <button class="btn ghost small" id="quitBtn" title="Stop Heat Doctor">Quit</button>
+  </div>
+  <nav class="tabs" aria-label="Sections">
+    <a href="#overview">Overview</a>
+    <a href="#heat">Heat &amp; disk</a>
+    <a href="#memory">Memory</a>
+    <a href="#storage">Storage</a>
+    <a href="#security">Security <span class="badge" id="secBadge" hidden></span></a>
+    <a href="#ask">Ask Claude</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <!-- ============================================================ OVERVIEW -->
+  <section class="view" id="view-overview">
+    <div class="card verdict" id="verdict">
+      <div class="v-main">
+        <span class="chip" id="vChip"></span>
+        <h1 id="vHeadline">Collecting data…</h1>
+        <p id="vSummary">Leave this open for a minute. The diagnosis gets more accurate the longer it runs.</p>
+      </div>
+      <div class="hero" id="hero"></div>
+    </div>
+    <div class="grid tiles mt" id="tiles"></div>
+    <div class="grid cols-2 mt">
+      <div class="card">
+        <div class="card-head"><div><h2>What to fix first</h2><p class="sub">Ranked by severity. Buttons open the right tool or apply a safe fix.</p></div></div>
+        <div class="findings" id="topFindings"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div><h2>Top heat suspects</h2><p class="sub">Estimated share of disk + CPU load over the window</p></div>
+          <a class="btn small" href="#heat">Details</a>
+        </div>
+        <div id="miniSuspects"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ HEAT -->
+  <section class="view" id="view-heat">
+    <h1 class="page">Heat &amp; disk activity</h1>
+    <div class="grid cols-3">
+      <div class="card"><div class="card-head"><div><h2>Temperature</h2><p class="sub" id="tempSub">°C</p></div><div class="legend" id="tempLegend"></div></div><div class="chart" id="chartTemp"></div></div>
+      <div class="card"><div class="card-head"><div><h2>Disk throughput</h2><p class="sub">Bytes per second, whole machine</p></div><div class="legend" id="diskLegend"></div></div><div class="chart" id="chartDisk"></div></div>
+      <div class="card"><div class="card-head"><div><h2>CPU load</h2><p class="sub">% of all cores</p></div></div><div class="chart" id="chartCpu"></div></div>
+    </div>
+    <div class="card mt">
+      <div class="card-head"><div><h2>What's heating your machine</h2><p class="sub">Processes ranked by disk + CPU load (averaged over the selected window). Similar processes are grouped together.</p></div></div>
+      <div class="table-wrap"><table id="suspectTable"></table></div>
+    </div>
+    <div class="grid cols-2 mt">
+      <div class="card"><h2>Drives</h2><p class="sub">Sensor and health data reported by the drive</p><div id="drivesBox"></div></div>
+      <div class="card"><h2>Heat findings</h2><p class="sub">&nbsp;</p><div class="findings" id="heatFindings"></div></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ MEMORY -->
+  <section class="view" id="view-memory">
+    <h1 class="page">Memory (RAM)</h1>
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>RAM in use</h2><p class="sub" id="memSub"></p>
+        <div class="hero" style="text-align:left"><div class="value" id="memHero">–</div></div>
+        <div class="meter" id="memMeter"><i style="width:0"></i></div>
+        <div class="legend mt" id="memLegend"></div>
+      </div>
+      <div class="card"><div class="card-head"><div><h2>RAM over time</h2><p class="sub">% used</p></div></div><div class="chart" id="chartMem"></div></div>
+    </div>
+    <div class="grid cols-2 mt">
+      <div class="card"><h2>What's using your RAM</h2><p class="sub">Private memory per app (all its processes added together)</p><div class="table-wrap"><table id="memTable"></table></div></div>
+      <div class="card"><h2>Memory findings</h2><p class="sub">&nbsp;</p><div class="findings" id="memFindings"></div></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ STORAGE -->
+  <section class="view" id="view-storage">
+    <h1 class="page">Storage</h1>
+    <div class="card"><h2>Drives &amp; partitions</h2><p class="sub">Keep at least 15–20% of an SSD free for speed, lifespan and lower write heat.</p><div id="partBox"></div></div>
+    <div class="card mt">
+      <div class="card-head">
+        <div><h2>What's eating your storage</h2><p class="sub" id="scanSub">Scans common space hogs and the largest folders in your user profile. Read-only, takes up to a minute.</p></div>
+        <button class="btn primary" id="scanStorageBtn">Scan storage</button>
+      </div>
+      <div class="grid cols-2">
+        <div><h2 style="font-size:13px" class="ink2">Known space hogs</h2><div id="hogsBox"><p class="empty">Run a scan to see results.</p></div></div>
+        <div><h2 style="font-size:13px" class="ink2">Largest folders in your profile</h2><div id="foldersBox"><p class="empty">Run a scan to see results.</p></div></div>
+      </div>
+    </div>
+    <div class="card mt"><h2>Storage findings</h2><p class="sub">&nbsp;</p><div class="findings" id="storageFindings"></div></div>
+  </section>
+
+  <!-- ============================================================ SECURITY -->
+  <section class="view" id="view-security">
+    <h1 class="page">Security check</h1>
+    <div class="card">
+      <div class="card-head">
+        <div><h2>Lightweight malware heuristics</h2>
+          <p class="sub">Looks for fake system processes, crypto-miners, hidden PowerShell, programs running from temp folders, suspicious startup items and scheduled tasks, and hosts-file tampering. It also checks that your antivirus is on. This is a second opinion, not a replacement for your antivirus.</p></div>
+        <button class="btn primary" id="scanSecBtn">Scan now</button>
+      </div>
+      <div class="grid cols-3" id="secSummary"></div>
+    </div>
+    <div class="card mt"><h2>Findings</h2><p class="sub" id="secSub"></p><div class="findings" id="secFindings"></div></div>
+    <div class="card mt"><h2>Programs that start automatically</h2><p class="sub">Fewer startup apps means less RAM used and a cooler idle machine.</p><div class="table-wrap"><table id="startupTable"></table></div></div>
+  </section>
+
+  <!-- ============================================================ ASK -->
+  <section class="view" id="view-ask">
+    <h1 class="page">Ask Claude</h1>
+    <div class="ask-layout">
+      <div class="card">
+        <div class="suggest" id="suggest">
+          <button>Why is my computer running so hot?</button>
+          <button>What should I do first to speed it up?</button>
+          <button>Is anything in the security scan worth worrying about?</button>
+          <button>How can I free up storage safely?</button>
+          <button>Do I need more RAM?</button>
+        </div>
+        <div class="chat" id="chat" aria-live="polite"></div>
+        <form class="ask-form" id="askForm">
+          <label class="sr-only" for="askInput">Your question</label>
+          <textarea id="askInput" rows="2" placeholder="Ask about your computer's heat, speed, storage or security…"></textarea>
+          <button class="btn primary" id="askBtn" type="submit">Ask</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Claude API key</h2>
+        <p class="sub" id="keyStatus">Checking…</p>
+        <form id="keyForm">
+          <div class="field"><label for="keyInput">API key</label><input id="keyInput" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
+          <label class="check"><input type="checkbox" id="keyRemember"> Remember on this computer</label>
+          <div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary small" type="submit">Save key</button><button class="btn small" type="button" id="keyClear">Remove</button></div>
+        </form>
+        <p class="sub mt">Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>. Usage is billed to your Anthropic account.</p>
+        <h2 class="mt">What gets sent</h2>
+        <p class="sub">A summary of this dashboard: process names, usage numbers, temperatures, storage sizes and security findings. Your username is removed from file paths. File contents are never sent. Nothing leaves your computer until you press Ask.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toasts" role="status" aria-live="polite"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
