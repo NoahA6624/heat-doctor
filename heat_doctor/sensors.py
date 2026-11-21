@@ -14,20 +14,6 @@ import psutil
 
 from .util import IS_WINDOWS, as_list, powershell_json, run
 
-_WIN_PROBE = r"""
-$ErrorActionPreference = 'SilentlyContinue'
-$drives = @(Get-PhysicalDisk | ForEach-Object {
-  $r = $null
-  try { $r = $_ | Get-StorageReliabilityCounter -ErrorAction Stop } catch {}
-  [pscustomobject]@{
-    name = $_.FriendlyName; media = [string]$_.MediaType; bus = [string]$_.BusType
-    size = [int64]$_.Size; health = [string]$_.HealthStatus
-    temp = $r.Temperature; temp_max = $r.TemperatureMax; wear = $r.Wear
-    hours = $r.PowerOnHours; read_errors = $r.ReadErrorsTotal; write_errors = $r.WriteErrorsTotal
-  }
-})
-[pscustomobject]@{ drives = $drives; plan = ((powercfg /getactivescheme) -join ' ') } | ConvertTo-Json -Depth 4 -Compress
-"""
 
 
 def _num(v):
@@ -64,7 +50,7 @@ def _smartctl_temps() -> dict[str, float]:
 def _probe_once(include_drives: bool = True) -> dict:
     result = {"drives": [], "zones": [], "pages_per_sec": None, "power_plan": None}
     if IS_WINDOWS:
-        data = (powershell_json(_WIN_PROBE, timeout=25) or {}) if include_drives else {}
+        data = (powershell_json("drive_probe.ps1", timeout=25) or {}) if include_drives else {}
         for d in as_list(data.get("drives")):
             result["drives"].append({
                 "name": d.get("name") or "Drive",

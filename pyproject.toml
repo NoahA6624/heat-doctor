@@ -21,4 +21,4 @@ heat-doctor = "heat_doctor.__main__:main"
 packages = ["heat_doctor"]
 
 [tool.setuptools.package-data]
-heat_doctor = ["static/*"]
+heat_doctor = ["static/*", "scripts/*.ps1"]

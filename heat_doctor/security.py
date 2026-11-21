@@ -71,42 +71,17 @@ def _risky_location(path: str) -> str | None:
     return "user-writable folder"
 
 
-_WIN_SECURITY = r"""
-$ErrorActionPreference = 'SilentlyContinue'
-$mp = $null
-try { $s = Get-MpComputerStatus -ErrorAction Stop
-  $mp = [pscustomobject]@{ service = $s.AMServiceEnabled; realtime = $s.RealTimeProtectionEnabled
-    sig_age = $s.AntivirusSignatureAge; quick_age = $s.QuickScanAge; full_age = $s.FullScanAge
-    tamper = $s.IsTamperProtected } } catch {}
-$av = @(Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct |
-  ForEach-Object { [pscustomobject]@{ name = $_.displayName; state = $_.productState } })
-$threats = @()
-try { $threats = @(Get-MpThreatDetection -ErrorAction Stop | Select-Object -First 10 |
-  ForEach-Object { [pscustomobject]@{ id = [string]$_.ThreatID; time = [string]$_.InitialDetectionTime; resources = ($_.Resources -join '; ') } }) } catch {}
-$tasks = @(Get-ScheduledTask | Where-Object { $_.State -ne 'Disabled' -and $_.TaskPath -notlike '\Microsoft\*' } |
-  ForEach-Object { $t = $_; $t.Actions | Where-Object { $_.Execute } | ForEach-Object {
-    [pscustomobject]@{ name = $t.TaskName; path = $t.TaskPath; author = [string]$t.Author; exec = [string]$_.Execute; args = [string]$_.Arguments } } })
-[pscustomobject]@{ defender = $mp; av = $av; threats = $threats; tasks = $tasks } | ConvertTo-Json -Depth 4 -Compress
-"""
 
-_SIG_CHECK = r"""
-$ErrorActionPreference = 'SilentlyContinue'
-$paths = @'
-{paths}
-'@ -split "`n" | Where-Object { $_.Trim() }
-@($paths | ForEach-Object { $p = $_.Trim(); $s = Get-AuthenticodeSignature -LiteralPath $p
-  [pscustomobject]@{ path = $p; status = [string]$s.Status; signer = [string]$s.SignerCertificate.Subject } }) | ConvertTo-Json -Compress
-"""
 
 
 def _signatures(paths: list[str]) -> dict[str, dict]:
-    # Paths come from untrusted processes: only absolute, single-line paths go into the script
-    # (each line then starts with a drive letter, so it can't terminate the here-string).
+    # Paths come from untrusted processes. They're passed to the script as data on stdin, one per line,
+    # so only absolute single-line paths are accepted.
     paths = [p for p in paths if p and os.path.isabs(p) and re.match(r"^[A-Za-z]:\\", p)
              and "\n" not in p and "\r" not in p]
     if not IS_WINDOWS or not paths:
         return {}
-    data = powershell_json(_SIG_CHECK.replace("{paths}", "\n".join(paths[:40])), timeout=40)
+    data = powershell_json("signature_check.ps1", stdin="\n".join(paths[:40]), timeout=40)
     out = {}
     for d in as_list(data):
         signer = d.get("signer") or ""
@@ -184,10 +159,15 @@ class SecurityScanner:
     # ------------------------------------------------------------------ scan
     def _run(self):
         findings: list[dict] = []
-        me = os.getpid()
+        # Skip Heat Doctor itself and the helper scripts it launches, so it never flags its own checks.
+        mine = {os.getpid()}
+        try:
+            mine |= {c.pid for c in psutil.Process().children(recursive=True)}
+        except psutil.Error:
+            pass
         procs = []
         for p in psutil.process_iter(["pid", "name", "exe", "cmdline", "username"]):
-            if p.info["pid"] in (0, 4, me):
+            if p.info["pid"] in (0, 4) or p.info["pid"] in mine:
                 continue
             procs.append(p.info)
 
@@ -258,7 +238,7 @@ class SecurityScanner:
 
         defender, av, tasks = None, [], []
         if IS_WINDOWS:
-            data = powershell_json(_WIN_SECURITY, timeout=60) or {}
+            data = powershell_json("security_status.ps1", timeout=60) or {}
             defender = data.get("defender")
             av = [a.get("name") for a in as_list(data.get("av")) if a.get("name")]
             for t in as_list(data.get("threats")):
